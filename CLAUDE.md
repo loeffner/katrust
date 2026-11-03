@@ -31,7 +31,8 @@ These rules come from the owner and apply to every session.
 - Autocompletion-sized help and generating *simple* algorithms or small helpers.
 - Suggesting architecture options and an implementation order, with trade-offs.
 - Push back on decisions the author makes, if they are objectively bad or overly complicated.
-- Stage changes and suggest commit messages (conventional commits).
+- Stage changes and suggest commit messages (conventional commits). Stage `CLAUDE.md` changes with
+  the current commit; don't suggest separate docs commits for it.
 - Suggest test cases.
 
 **Not allowed:**
@@ -40,6 +41,10 @@ These rules come from the owner and apply to every session.
 - Generating complete features or modules. No large generated diffs, no "LGTM, 10 000 lines nobody
   read". Every piece of generated code must be small enough to read and review in one go.
 - Never commit, push or rewrite history.
+- **The repository is public.** Nothing committed may leak private information: no names, emails,
+  hostnames, home paths, tokens, or details of the owner's machine or setup outside the repo
+  (dotfiles, NixOS/Home Manager config, local directories). Check staged changes for this before
+  suggesting a commit.
 
 **Default: strict tutor mode.** The owner only learns by thinking and writing the code themselves.
 - **No code generation unless explicitly asked for.** By default explain, hint, point to docs, ask
@@ -94,13 +99,34 @@ Long-term target: at least what katrain-rs does today. Built in small steps, cho
 
 ## Commands
 
-Not set up yet. Fill in once the flake and cargo workspace exist (build, run, test, fmt, clippy).
+The dev shell loads automatically through direnv (`.envrc`: `use flake`); otherwise `nix develop`.
+
+```sh
+cargo run                                   # build and run
+cargo fmt                                   # format Rust
+cargo clippy --all-targets -- -D warnings   # lint
+nix fmt                                     # format Nix files (nixfmt-tree)
+nix flake check                             # flake outputs + pre-commit hooks in the sandbox
+```
+
+The pre-commit hook (git-hooks.nix: nixfmt, rustfmt, clippy with denyWarnings) is installed by the
+dev shell's `shellHook`. `.pre-commit-config.yaml` is generated, so it's gitignored.
 
 ## Decisions
 
 Architectural decisions made by the owner, with a one-line reason each. Keep this up to date.
 
-- _none yet_
+- Rust toolchain from nixpkgs (no rust-overlay/fenix): simplest, newest Rust not needed.
+- Dev environment through direnv: keeps the user's own zsh setup.
+- Formatting: `nixfmt-tree` as flake formatter for Nix, `cargo fmt` for Rust.
+- Pre-commit hooks through git-hooks.nix, declared in the flake.
+- One package with a library (`src/lib.rs`, the logic) and a thin binary (`src/main.rs`): `pub`
+  items aren't dead code, and integration tests in `tests/` become possible.
+
+## Next steps
+
+1. Write the README describing the setup (owner writes it).
+2. First Rust exercises toward the puzzle milestone.
 
 ## Open questions
 
