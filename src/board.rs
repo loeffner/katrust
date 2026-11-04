@@ -31,7 +31,7 @@ pub struct Point {
     pub y: u8,
 }
 
-/// A group of connected Points of the same Color
+/// A group of connected Stones of the same color
 pub type Group = HashSet<Point>;
 
 /// A square Go board: which stone, if any, is on each intersection.
@@ -55,7 +55,7 @@ impl Board {
     }
 
     fn index(&self, point: Point) -> usize {
-        assert!(self.contains(point), "point {point:?} is off the board");
+        assert!(self.contains(point), "{point:?} is off the board");
         usize::from(point.x) + usize::from(point.y) * self.size
     }
 
@@ -95,7 +95,7 @@ impl Board {
     ///
     /// If `point` is not on the board.
     fn neighbors(&self, point: Point) -> Vec<Point> {
-        assert!(self.contains(point), "point {point:?} is off the board");
+        assert!(self.contains(point), "{point:?} is off the board");
 
         let mut neighbors = vec![];
         if point.x > 0 {
@@ -130,10 +130,10 @@ impl Board {
     /// # Panics
     ///
     /// - If `point` is not on the board
-    /// - If `point` has no Stone
+    /// - If `point` is empty
     pub fn group(&self, point: Point) -> Group {
         let color = self.get(point);
-        assert!(color.is_some(), "point {point:?} is empty point");
+        assert!(color.is_some(), "{point:?} is empty");
 
         let mut stack = vec![point];
         let mut group = HashSet::from([point]);
@@ -484,8 +484,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "empty point")]
-    fn group_panics_for_point_no_color() {
+    #[should_panic(expected = "is empty")]
+    fn group_panics_for_point_is_empty() {
         let board = Board::new(9);
         let point_a = Point { x: 4, y: 4 };
 
