@@ -3,7 +3,9 @@
 /// The colour of a stone, or of the player who places it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stone {
+    /// Black player
     Black,
+    /// White player
     White,
 }
 

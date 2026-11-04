@@ -112,6 +112,9 @@ nix flake check                             # flake outputs + pre-commit hooks i
 The pre-commit hook (git-hooks.nix: nixfmt, rustfmt, clippy with denyWarnings) is installed by the
 dev shell's `shellHook`. `.pre-commit-config.yaml` is generated, so it's gitignored.
 
+`Cargo.toml` enables `missing_docs` and `clippy::missing_panics_doc`: every public item needs a doc
+comment, and functions that can panic need a `# Panics` section. Doc tests only where an example helps.
+
 ## Decisions
 
 Architectural decisions made by the owner, with a one-line reason each. Keep this up to date.
