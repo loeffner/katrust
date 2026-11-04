@@ -122,6 +122,12 @@ Architectural decisions made by the owner, with a one-line reason each. Keep thi
 - Pre-commit hooks through git-hooks.nix, declared in the flake.
 - One package with a library (`src/lib.rs`, the logic) and a thin binary (`src/main.rs`): `pub`
   items aren't dead code, and integration tests in `tests/` become possible.
+- Board points are `Point { x: u8, y: u8 }`, origin top-left and 0-based like SGF. A point is just
+  coordinates; `Board` decides whether it's valid.
+- Points off the board passed to `Board` methods panic: that's a bug in the caller (like `vec[i]`).
+  `Result` is for expected failures, such as illegal moves.
+- `Board` stores a flat grid `Vec<Option<Stone>>` (one slot per intersection, indexed by `index`),
+  not a list of stones: O(1) access, and two stones on one point can't happen.
 
 ## Next steps
 
