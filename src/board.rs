@@ -1,4 +1,5 @@
 //! Stones, Board and Board Coords
+use std::collections::HashSet;
 
 /// The colour of a stone, or of the player who places it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,13 +23,16 @@ impl Stone {
 /// An intersection, counted from 0 at the top-left corner, as in SGF.
 ///
 /// A point is only a pair of coordinates: whether it lies on a board is up to [`Board::contains`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point {
     /// Column, from left to right.
     pub x: u8,
     /// Row, from top to bottom.
     pub y: u8,
 }
+
+/// A group of connected Points of the same Color
+pub type Group = HashSet<Point>;
 
 /// A square Go board: which stone, if any, is on each intersection.
 ///
@@ -81,6 +85,69 @@ impl Board {
         let index = self.index(point);
         std::mem::replace(&mut self.grid[index], stone)
     }
+
+    // TODO: return an iterator once lifetimes are covered.
+    /// Returns the neighboring points on the board, in no particular order.
+    ///
+    /// Points on an edge have three neighbors, corners two.
+    ///
+    /// # Panics
+    ///
+    /// If `point` is not on the board.
+    fn neighbors(&self, point: Point) -> Vec<Point> {
+        assert!(self.contains(point), "point {point:?} is off the board");
+
+        let mut neighbors = vec![];
+        if point.x > 0 {
+            neighbors.push(Point {
+                x: point.x - 1,
+                y: point.y,
+            });
+        }
+        if point.y > 0 {
+            neighbors.push(Point {
+                x: point.x,
+                y: point.y - 1,
+            });
+        }
+        if usize::from(point.y) + 1 < self.size {
+            neighbors.push(Point {
+                x: point.x,
+                y: point.y + 1,
+            });
+        }
+        if usize::from(point.x) + 1 < self.size {
+            neighbors.push(Point {
+                x: point.x + 1,
+                y: point.y,
+            });
+        }
+        neighbors
+    }
+
+    /// Returns the group of connected points with the same color.
+    ///
+    /// # Panics
+    ///
+    /// - If `point` is not on the board
+    /// - If `point` has no Stone
+    pub fn group(&self, point: Point) -> Group {
+        let color = self.get(point);
+        assert!(color.is_some(), "point {point:?} is empty point");
+
+        let mut stack = vec![point];
+        let mut group = HashSet::from([point]);
+
+        while let Some(current) = stack.pop() {
+            for neighbor in self.neighbors(current) {
+                // Color check first: only same-color stones may be inserted into the group
+                if self.get(neighbor) == color && group.insert(neighbor) {
+                    stack.push(neighbor);
+                }
+            }
+        }
+        group
+    }
 }
 
 #[cfg(test)]
@@ -88,12 +155,14 @@ mod tests {
     use super::*;
     use Stone::*;
 
+    // Color tests
     #[test]
     fn opponent_swaps_color() {
         assert_eq!(Black.opponent(), White);
         assert_eq!(White.opponent(), Black);
     }
 
+    // Points on Board
     #[test]
     fn point_to_index() {
         let board = Board::new(9);
@@ -186,5 +255,240 @@ mod tests {
         let point = Point { x: 9, y: 0 };
 
         board.get(point);
+    }
+
+    // Neighbors
+    #[test]
+    fn neighbors_returns_correct_points_center() {
+        let board = Board::new(9);
+        let center = Point { x: 4, y: 4 };
+        let expected_neighbors = vec![
+            Point { x: 3, y: 4 }, // west
+            Point { x: 4, y: 3 }, // north
+            Point { x: 4, y: 5 }, // south
+            Point { x: 5, y: 4 }, // east
+        ];
+
+        let mut actual_neighbors = board.neighbors(center);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+    }
+
+    #[test]
+    fn neighbors_returns_correct_points_edge() {
+        let board = Board::new(9);
+        let edge = Point { x: 4, y: 0 };
+        let expected_neighbors = vec![
+            Point { x: 3, y: 0 }, // west
+            Point { x: 4, y: 1 }, // south
+            Point { x: 5, y: 0 }, // east
+        ];
+
+        let mut actual_neighbors = board.neighbors(edge);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+
+        let edge = Point { x: 8, y: 4 };
+        let expected_neighbors = vec![
+            Point { x: 7, y: 4 }, // west
+            Point { x: 8, y: 3 }, // north
+            Point { x: 8, y: 5 }, // south
+        ];
+
+        let mut actual_neighbors = board.neighbors(edge);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+
+        let edge = Point { x: 4, y: 8 };
+        let expected_neighbors = vec![
+            Point { x: 3, y: 8 }, // west
+            Point { x: 4, y: 7 }, // north
+            Point { x: 5, y: 8 }, // east
+        ];
+
+        let mut actual_neighbors = board.neighbors(edge);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+
+        let edge = Point { x: 0, y: 4 };
+        let expected_neighbors = vec![
+            Point { x: 0, y: 3 }, // north
+            Point { x: 0, y: 5 }, // south
+            Point { x: 1, y: 4 }, // east
+        ];
+
+        let mut actual_neighbors = board.neighbors(edge);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+    }
+
+    #[test]
+    fn neighbors_returns_correct_points_corner() {
+        let board = Board::new(9);
+        let corner = Point { x: 0, y: 0 };
+        let expected_neighbors = vec![
+            Point { x: 0, y: 1 }, // south
+            Point { x: 1, y: 0 }, // east
+        ];
+
+        let mut actual_neighbors = board.neighbors(corner);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+
+        let corner = Point { x: 8, y: 0 };
+        let expected_neighbors = vec![
+            Point { x: 7, y: 0 }, // west
+            Point { x: 8, y: 1 }, // south
+        ];
+
+        let mut actual_neighbors = board.neighbors(corner);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+
+        let corner = Point { x: 8, y: 8 };
+        let expected_neighbors = vec![
+            Point { x: 7, y: 8 }, // west
+            Point { x: 8, y: 7 }, // north
+        ];
+
+        let mut actual_neighbors = board.neighbors(corner);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+
+        let corner = Point { x: 0, y: 8 };
+        let expected_neighbors = vec![
+            Point { x: 0, y: 7 }, // north
+            Point { x: 1, y: 8 }, // east
+        ];
+
+        let mut actual_neighbors = board.neighbors(corner);
+        actual_neighbors.sort();
+        assert_eq!(actual_neighbors, expected_neighbors);
+    }
+
+    #[test]
+    #[should_panic(expected = "off the board")]
+    fn neighbors_panics_for_point_off_board() {
+        let board = Board::new(9);
+        let point = Point { x: 9, y: 0 };
+
+        board.neighbors(point);
+    }
+
+    // Groups
+    #[test]
+    fn single_stone_is_group() {
+        let mut board = Board::new(9);
+        let point = Point { x: 4, y: 4 };
+
+        board.set(point, Some(Black));
+        let group = board.group(point);
+
+        assert_eq!(group, HashSet::from([point]));
+    }
+
+    #[test]
+    fn triangle_forms_one_group() {
+        let mut board = Board::new(9);
+        let point_a = Point { x: 4, y: 4 };
+        let point_b = Point { x: 4, y: 5 };
+        let point_c = Point { x: 5, y: 4 };
+
+        board.set(point_a, Some(White));
+        board.set(point_b, Some(White));
+        board.set(point_c, Some(White));
+        let group = board.group(point_a);
+
+        assert_eq!(group, HashSet::from([point_a, point_b, point_c]));
+    }
+
+    #[test]
+    fn square_forms_one_group() {
+        let mut board = Board::new(9);
+        let point_a = Point { x: 4, y: 4 };
+        let point_b = Point { x: 4, y: 5 };
+        let point_c = Point { x: 5, y: 4 };
+        let point_d = Point { x: 5, y: 5 };
+
+        board.set(point_a, Some(White));
+        board.set(point_b, Some(White));
+        board.set(point_c, Some(White));
+        board.set(point_d, Some(White));
+        let group = board.group(point_d);
+
+        assert_eq!(group, HashSet::from([point_a, point_b, point_c, point_d]));
+    }
+
+    #[test]
+    fn u_shape_forms_one_group() {
+        // The ends (4, 4) and (5, 3) touch only diagonally, but connect around the U.
+        let mut board = Board::new(9);
+        let point_a = Point { x: 4, y: 4 };
+        let point_b = Point { x: 4, y: 5 };
+        let point_c = Point { x: 5, y: 5 };
+        let point_d = Point { x: 6, y: 5 };
+        let point_e = Point { x: 6, y: 4 };
+        let point_f = Point { x: 6, y: 3 };
+        let point_g = Point { x: 5, y: 3 };
+
+        board.set(point_a, Some(White));
+        board.set(point_b, Some(White));
+        board.set(point_c, Some(White));
+        board.set(point_d, Some(White));
+        board.set(point_e, Some(White));
+        board.set(point_f, Some(White));
+        board.set(point_g, Some(White));
+        let group = board.group(point_f);
+
+        assert_eq!(
+            group,
+            HashSet::from([
+                point_a, point_b, point_c, point_d, point_e, point_f, point_g
+            ])
+        );
+    }
+
+    #[test]
+    fn diagonal_stones_are_no_group() {
+        let mut board = Board::new(9);
+        let point_a = Point { x: 4, y: 4 };
+        let point_b = Point { x: 5, y: 5 };
+
+        board.set(point_a, Some(Black));
+        board.set(point_b, Some(Black));
+        let group = board.group(point_a);
+
+        assert_eq!(group, HashSet::from([point_a]));
+    }
+
+    #[test]
+    fn different_color_stones_are_no_group() {
+        let mut board = Board::new(9);
+        let point_a = Point { x: 4, y: 4 };
+        let point_b = Point { x: 4, y: 5 };
+
+        board.set(point_a, Some(Black));
+        board.set(point_b, Some(White));
+        let group = board.group(point_a);
+
+        assert_eq!(group, HashSet::from([point_a]));
+    }
+
+    #[test]
+    #[should_panic(expected = "off the board")]
+    fn group_panics_for_point_off_board() {
+        let board = Board::new(9);
+        let point_a = Point { x: 9, y: 0 };
+
+        board.group(point_a);
+    }
+
+    #[test]
+    #[should_panic(expected = "empty point")]
+    fn group_panics_for_point_no_color() {
+        let board = Board::new(9);
+        let point_a = Point { x: 4, y: 4 };
+
+        board.group(point_a);
     }
 }

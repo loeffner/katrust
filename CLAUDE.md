@@ -134,8 +134,17 @@ Architectural decisions made by the owner, with a one-line reason each. Keep thi
 
 ## Next steps
 
-1. Write the README describing the setup (owner writes it).
-2. First Rust exercises toward the puzzle milestone.
+Puzzle milestone, board logic first (no UI, TDD). Done: `Stone`, `Point`, `Board` (get/set),
+`Board::neighbors` (private, `Vec<Point>`, order unspecified; tests sort before comparing),
+`Board::group` (flood fill, check on push; panics for empty points; returns `Group = HashSet<Point>`).
+
+1. Liberties of a group: the empty neighbours of its stones, deduplicated in a `HashSet`. Owner
+   still decides the contract for empty points (panic or `Option`; not 0, which looks like a capture).
+2. Playing a move: captures, illegal moves as `Result` with an error enum.
+3. Then SGF parsing and the solution tree. README once there's a product.
+
+Optional later: rewrite `neighbors` with `checked_sub`/`checked_add` + `flatten`/`filter`, or as an
+iterator once lifetimes come up (`TODO` in the code).
 
 ## Open questions
 
