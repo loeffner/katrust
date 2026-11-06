@@ -1,4 +1,4 @@
-//! The Go board: colors, points, and groups of connected stones.
+//! The Go board: colors, points, and groups of connected stones with their liberties.
 use std::collections::HashSet;
 
 /// The color of a stone, or of the player who places it.
@@ -31,8 +31,18 @@ pub struct Point {
     pub y: u8,
 }
 
-/// A group of connected stones of the same color.
-pub type Group = HashSet<Point>;
+/// A group of connected stones of the same color, and its liberties.
+///
+/// A snapshot from [`Board::group`]: it isn't updated when the board changes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Group {
+    /// The points occupied by the group's stones.
+    pub stones: HashSet<Point>,
+    /// The empty points next to the group. With none left, the group is captured.
+    pub liberties: HashSet<Point>,
+    /// The color of the group's stones.
+    pub color: Color,
+}
 
 /// A square Go board: which stone, if any, is on each intersection.
 ///
@@ -125,28 +135,41 @@ impl Board {
         neighbors
     }
 
-    /// Returns the group of connected points with the same color.
+    /// Returns the group that the stone on `point` belongs to, with its liberties.
     ///
     /// # Panics
     ///
     /// - If `point` is not on the board
     /// - If `point` is empty
     pub fn group(&self, point: Point) -> Group {
-        let color = self.get(point);
-        assert!(color.is_some(), "{point:?} is empty");
+        let Some(color) = self.get(point) else {
+            panic!("{point:?} is empty");
+        };
 
         let mut stack = vec![point];
-        let mut group = HashSet::from([point]);
+        let mut stones = HashSet::from([point]);
+        let mut liberties = HashSet::new();
 
         while let Some(current) = stack.pop() {
             for neighbor in self.neighbors(current) {
-                // Color check first: only same-color stones may be inserted into the group
-                if self.get(neighbor) == color && group.insert(neighbor) {
-                    stack.push(neighbor);
+                match self.get(neighbor) {
+                    None => {
+                        liberties.insert(neighbor);
+                    }
+                    Some(stone) if stone == color => {
+                        if stones.insert(neighbor) {
+                            stack.push(neighbor);
+                        }
+                    }
+                    Some(_) => {}
                 }
             }
         }
-        group
+        Group {
+            stones,
+            liberties,
+            color,
+        }
     }
 }
 
@@ -154,6 +177,10 @@ impl Board {
 mod tests {
     use super::*;
     use Color::*;
+
+    // Board diagrams in comments show a section of the board:
+    // X = black, O = white, . = empty, + = a liberty the test expects, | and - = board edge.
+    // x grows to the right, y grows down; each diagram names the point in its top-left corner.
 
     // Color tests
     #[test]
@@ -180,6 +207,9 @@ mod tests {
     #[test]
     fn point_inside_board() {
         let board = Board::new(19);
+
+        let point = Point { x: 0, y: 0 };
+        assert!(board.contains(point));
 
         let point = Point { x: 0, y: 18 };
         assert!(board.contains(point));
@@ -377,99 +407,156 @@ mod tests {
 
     // Groups
     #[test]
-    fn single_stone_is_group() {
+    fn single_stone_is_group_with_four_liberties() {
+        // Top-left (3, 3):
+        // . + .
+        // + X +
+        // . + .
         let mut board = Board::new(9);
         let point = Point { x: 4, y: 4 };
 
         board.set(point, Some(Black));
-        let group = board.group(point);
 
-        assert_eq!(group, HashSet::from([point]));
+        let expected = Group {
+            stones: HashSet::from([point]),
+            liberties: HashSet::from([
+                Point { x: 3, y: 4 },
+                Point { x: 5, y: 4 },
+                Point { x: 4, y: 3 },
+                Point { x: 4, y: 5 },
+            ]),
+            color: Black,
+        };
+
+        assert_eq!(board.group(point), expected);
     }
 
     #[test]
-    fn triangle_forms_one_group() {
+    fn group_is_correct_color() {
         let mut board = Board::new(9);
-        let point_a = Point { x: 4, y: 4 };
-        let point_b = Point { x: 4, y: 5 };
-        let point_c = Point { x: 5, y: 4 };
+        let point_b = Point { x: 8, y: 8 };
+        let point_w = Point { x: 0, y: 0 };
 
-        board.set(point_a, Some(White));
-        board.set(point_b, Some(White));
-        board.set(point_c, Some(White));
-        let group = board.group(point_a);
+        board.set(point_b, Some(Black));
+        board.set(point_w, Some(White));
+        let color_b = board.group(point_b).color;
+        let color_w = board.group(point_w).color;
 
-        assert_eq!(group, HashSet::from([point_a, point_b, point_c]));
+        assert_eq!(color_b, Black);
+        assert_eq!(color_w, White);
     }
 
     #[test]
     fn square_forms_one_group() {
+        // Top-left (3, 3):
+        // . . . .
+        // . O O .
+        // . O O .
+        // . . . .
         let mut board = Board::new(9);
-        let point_a = Point { x: 4, y: 4 };
-        let point_b = Point { x: 4, y: 5 };
-        let point_c = Point { x: 5, y: 4 };
-        let point_d = Point { x: 5, y: 5 };
+        let square = [
+            Point { x: 4, y: 4 },
+            Point { x: 4, y: 5 },
+            Point { x: 5, y: 4 },
+            Point { x: 5, y: 5 },
+        ];
+        for point in square {
+            board.set(point, Some(White));
+        }
 
-        board.set(point_a, Some(White));
-        board.set(point_b, Some(White));
-        board.set(point_c, Some(White));
-        board.set(point_d, Some(White));
-        let group = board.group(point_d);
+        let group = board.group(square[3]).stones;
 
-        assert_eq!(group, HashSet::from([point_a, point_b, point_c, point_d]));
+        assert_eq!(group, HashSet::from(square));
     }
 
     #[test]
     fn u_shape_forms_one_group() {
+        // Top-left (3, 2):
+        // . . . . .
+        // . . O O .
+        // . O . O .
+        // . O O O .
+        // . . . . .
         // The ends (4, 4) and (5, 3) touch only diagonally, but connect around the U.
         let mut board = Board::new(9);
-        let point_a = Point { x: 4, y: 4 };
-        let point_b = Point { x: 4, y: 5 };
-        let point_c = Point { x: 5, y: 5 };
-        let point_d = Point { x: 6, y: 5 };
-        let point_e = Point { x: 6, y: 4 };
-        let point_f = Point { x: 6, y: 3 };
-        let point_g = Point { x: 5, y: 3 };
+        let u_shape = [
+            Point { x: 4, y: 4 },
+            Point { x: 4, y: 5 },
+            Point { x: 5, y: 5 },
+            Point { x: 6, y: 5 },
+            Point { x: 6, y: 4 },
+            Point { x: 6, y: 3 },
+            Point { x: 5, y: 3 },
+        ];
+        for point in u_shape {
+            board.set(point, Some(White));
+        }
 
-        board.set(point_a, Some(White));
-        board.set(point_b, Some(White));
-        board.set(point_c, Some(White));
-        board.set(point_d, Some(White));
-        board.set(point_e, Some(White));
-        board.set(point_f, Some(White));
-        board.set(point_g, Some(White));
-        let group = board.group(point_f);
+        let group = board.group(u_shape[5]).stones;
 
-        assert_eq!(
-            group,
-            HashSet::from([
-                point_a, point_b, point_c, point_d, point_e, point_f, point_g
-            ])
-        );
+        assert_eq!(group, HashSet::from(u_shape));
+    }
+
+    #[test]
+    fn group_is_same_from_every_stone() {
+        // Top-left (3, 2), the same U as above:
+        // . . . . .
+        // . . O O .
+        // . O . O .
+        // . O O O .
+        // . . . . .
+        let mut board = Board::new(9);
+        let u_shape = [
+            Point { x: 4, y: 4 },
+            Point { x: 4, y: 5 },
+            Point { x: 5, y: 5 },
+            Point { x: 6, y: 5 },
+            Point { x: 6, y: 4 },
+            Point { x: 6, y: 3 },
+            Point { x: 5, y: 3 },
+        ];
+        for point in u_shape {
+            board.set(point, Some(White));
+        }
+
+        let expected = board.group(u_shape[0]);
+        for point in u_shape {
+            assert_eq!(board.group(point), expected, "group from {point:?}");
+        }
     }
 
     #[test]
     fn diagonal_stones_are_no_group() {
+        // Top-left (3, 3):
+        // . . . .
+        // . X . .
+        // . . X .
+        // . . . .
         let mut board = Board::new(9);
-        let point_a = Point { x: 4, y: 4 };
-        let point_b = Point { x: 5, y: 5 };
+        let diagonal = [Point { x: 4, y: 4 }, Point { x: 5, y: 5 }];
+        for point in diagonal {
+            board.set(point, Some(Black));
+        }
 
-        board.set(point_a, Some(Black));
-        board.set(point_b, Some(Black));
-        let group = board.group(point_a);
+        let group = board.group(diagonal[0]).stones;
 
-        assert_eq!(group, HashSet::from([point_a]));
+        assert_eq!(group, HashSet::from([diagonal[0]]));
     }
 
     #[test]
     fn different_color_stones_are_no_group() {
+        // Top-left (3, 3):
+        // . . .
+        // . X .
+        // . O .
+        // . . .
         let mut board = Board::new(9);
         let point_a = Point { x: 4, y: 4 };
         let point_b = Point { x: 4, y: 5 };
 
         board.set(point_a, Some(Black));
         board.set(point_b, Some(White));
-        let group = board.group(point_a);
+        let group = board.group(point_a).stones;
 
         assert_eq!(group, HashSet::from([point_a]));
     }
@@ -490,5 +577,184 @@ mod tests {
         let point_a = Point { x: 4, y: 4 };
 
         board.group(point_a);
+    }
+
+    // Liberties
+    #[test]
+    fn liberties_single_stone_edge() {
+        // Top-left (0, 3), left edge:
+        // | + . .
+        // | X + .
+        // | + . .
+        let mut board = Board::new(9);
+        let point = Point { x: 0, y: 4 };
+
+        board.set(point, Some(Black));
+        let liberties = board.group(point).liberties;
+
+        assert_eq!(
+            liberties,
+            HashSet::from([
+                Point { x: 0, y: 3 },
+                Point { x: 0, y: 5 },
+                Point { x: 1, y: 4 }
+            ])
+        );
+    }
+
+    #[test]
+    fn liberties_single_stone_corner() {
+        // Top-left (6, 6), bottom-right corner:
+        // . . . |
+        // . . + |
+        // . + X |
+        // ------+
+        let mut board = Board::new(9);
+        let point = Point { x: 8, y: 8 };
+
+        board.set(point, Some(Black));
+        let liberties = board.group(point).liberties;
+
+        assert_eq!(
+            liberties,
+            HashSet::from([Point { x: 7, y: 8 }, Point { x: 8, y: 7 },])
+        );
+    }
+
+    #[test]
+    fn liberties_shared() {
+        // Top-left (3, 3); (4, 5) touches two stones but is one liberty:
+        // . + + .
+        // + X X +
+        // . + X +
+        // . . + .
+        let mut board = Board::new(9);
+        let stones = [
+            Point { x: 4, y: 4 },
+            Point { x: 5, y: 4 },
+            Point { x: 5, y: 5 },
+        ];
+        for point in stones {
+            board.set(point, Some(Black));
+        }
+
+        let liberties = board.group(stones[0]).liberties;
+
+        assert_eq!(
+            liberties,
+            HashSet::from([
+                Point { x: 3, y: 4 },
+                Point { x: 4, y: 3 },
+                Point { x: 5, y: 3 },
+                Point { x: 6, y: 4 },
+                Point { x: 6, y: 5 },
+                Point { x: 5, y: 6 },
+                Point { x: 4, y: 5 },
+            ])
+        );
+    }
+
+    #[test]
+    fn liberties_reduced() {
+        // Top-left (3, 2); + = liberties of the black group, white takes two away:
+        // . . . .
+        // . O O .
+        // + X X +
+        // . + + .
+        let mut board = Board::new(9);
+        let black = [Point { x: 4, y: 4 }, Point { x: 5, y: 4 }];
+        let white = [Point { x: 4, y: 3 }, Point { x: 5, y: 3 }];
+        for point in black {
+            board.set(point, Some(Black));
+        }
+        for point in white {
+            board.set(point, Some(White));
+        }
+
+        let liberties = board.group(black[0]).liberties;
+
+        assert_eq!(
+            liberties,
+            HashSet::from([
+                Point { x: 3, y: 4 },
+                Point { x: 4, y: 5 },
+                Point { x: 5, y: 5 },
+                Point { x: 6, y: 4 },
+            ])
+        );
+    }
+
+    #[test]
+    fn liberties_none() {
+        // Top-left (3, 3):
+        // . O .
+        // O X O
+        // . O .
+        let mut board = Board::new(9);
+        let point_b = Point { x: 4, y: 4 };
+        let white = [
+            Point { x: 3, y: 4 },
+            Point { x: 5, y: 4 },
+            Point { x: 4, y: 3 },
+            Point { x: 4, y: 5 },
+        ];
+
+        board.set(point_b, Some(Black));
+        for point in white {
+            board.set(point, Some(White));
+        }
+
+        let group_b = board.group(point_b);
+
+        assert_eq!(group_b.liberties, HashSet::new());
+    }
+
+    #[test]
+    fn ring_around_eye_is_one_group_with_eye_as_liberty() {
+        // Top-left (2, 2); only the eye at (4, 4) is marked, the outside liberties are listed below:
+        // . . . . .
+        // . X X X .
+        // . X + X .
+        // . X X X .
+        // . . . . .
+        let mut board = Board::new(9);
+        let ring = [
+            Point { x: 3, y: 3 },
+            Point { x: 4, y: 3 },
+            Point { x: 5, y: 3 },
+            Point { x: 3, y: 4 },
+            Point { x: 5, y: 4 },
+            Point { x: 3, y: 5 },
+            Point { x: 4, y: 5 },
+            Point { x: 5, y: 5 },
+        ];
+        for point in ring {
+            board.set(point, Some(Black));
+        }
+
+        let expected = Group {
+            stones: HashSet::from(ring),
+            liberties: HashSet::from([
+                // The eye: touched by four stones, but one liberty.
+                Point { x: 4, y: 4 },
+                // Outside the ring, three per side.
+                Point { x: 3, y: 2 },
+                Point { x: 4, y: 2 },
+                Point { x: 5, y: 2 },
+                Point { x: 3, y: 6 },
+                Point { x: 4, y: 6 },
+                Point { x: 5, y: 6 },
+                Point { x: 2, y: 3 },
+                Point { x: 2, y: 4 },
+                Point { x: 2, y: 5 },
+                Point { x: 6, y: 3 },
+                Point { x: 6, y: 4 },
+                Point { x: 6, y: 5 },
+            ]),
+            color: Black,
+        };
+
+        // Start in a corner, so the flood fill has to go around the eye.
+        assert_eq!(board.group(Point { x: 3, y: 3 }), expected);
     }
 }

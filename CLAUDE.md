@@ -147,8 +147,9 @@ Puzzle milestone, board logic first (no UI, TDD). Done: `Color`, `Point`, `Board
 `Board::neighbors` (private, `Vec<Point>`, order unspecified; tests sort before comparing),
 `Board::group` (flood fill, check on push; panics for empty points; returns `Group = HashSet<Point>`).
 
-1. Liberties of a group: the empty neighbours of its stones, deduplicated in a `HashSet`. Owner
-   still decides the contract for empty points (panic or `Option`; not 0, which looks like a capture).
+1. Liberties: `group()` returns a `struct Group` with the stones, the liberties and the colour,
+   from one flood fill (captures need all three). Liberties are points, not a count, so the UI can
+   show them to beginners (e.g. atari warnings).
 2. Playing a move: captures, illegal moves as `Result` with an error enum.
 3. Then SGF parsing and the solution tree. README once there's a product.
 
