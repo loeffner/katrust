@@ -99,7 +99,9 @@ Long-term target: at least what katrain-rs does today. Built in small steps, cho
 
 ## Commands
 
-The dev shell loads automatically through direnv (`.envrc`: `use flake`); otherwise `nix develop`.
+Enter the dev shell with `nix develop`, or through direnv with a local `.envrc` containing
+`use flake` (gitignored, each clone creates its own). Enter it once after cloning: its `shellHook`
+installs the pre-commit hook.
 
 ```sh
 cargo run                                   # build and run
@@ -120,7 +122,10 @@ comment, and functions that can panic need a `# Panics` section. Doc tests only 
 Architectural decisions made by the owner, with a one-line reason each. Keep this up to date.
 
 - Rust toolchain from nixpkgs (no rust-overlay/fenix): simplest, newest Rust not needed.
-- Dev environment through direnv: keeps the user's own zsh setup.
+- Dev environment through direnv: keeps the user's own zsh setup. `.envrc` and `.vscode/` are
+  gitignored: per-user setup, not part of the project.
+- Editor tooling from the flake (`rust-analyzer`, `RUST_SRC_PATH` in the dev shell): the editor
+  uses the same toolchain as cargo; VS Code's bundled rust-analyzer doesn't run on NixOS.
 - Formatting: `nixfmt-tree` as flake formatter for Nix, `cargo fmt` for Rust.
 - Pre-commit hooks through git-hooks.nix, declared in the flake.
 - One package with a library (`src/lib.rs`, the logic) and a thin binary (`src/main.rs`): `pub`

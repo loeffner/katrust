@@ -1,6 +1,10 @@
 # Environment
+/.envrc
 /.direnv
 /.pre-commit-config.yaml
+
+# Editors
+.vscode
 
 # Added by cargo
 /target

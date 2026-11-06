@@ -37,9 +37,12 @@
           cargo
           clippy
           rustfmt
+          rust-analyzer
         ];
 
         inherit (pre-commit-check) shellHook;
+
+        RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
       };
 
       formatter.x86_64-linux = pkgs.nixfmt-tree;
