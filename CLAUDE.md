@@ -134,12 +134,16 @@ Architectural decisions made by the owner, with a one-line reason each. Keep thi
   coordinates; `Board` decides whether it's valid.
 - Points off the board passed to `Board` methods panic: that's a bug in the caller (like `vec[i]`).
   `Result` is for expected failures, such as illegal moves.
-- `Board` stores a flat grid `Vec<Option<Stone>>` (one slot per intersection, indexed by `index`),
+- Naming (suggested by Claude at the owner's request): `Color` for Black/White (as in katrain-rs;
+  reads naturally on the board, `Option<Color>` = intersection), and `Group { color, stones,
+  liberties }` (the term beginners know; "chain" would be the engine term). In the UI, rename a
+  toolkit's `Color` on import (`use … Color as UiColor`).
+- `Board` stores a flat grid `Vec<Option<Color>>` (one slot per intersection, indexed by `index`),
   not a list of stones: O(1) access, and two stones on one point can't happen.
 
 ## Next steps
 
-Puzzle milestone, board logic first (no UI, TDD). Done: `Stone`, `Point`, `Board` (get/set),
+Puzzle milestone, board logic first (no UI, TDD). Done: `Color`, `Point`, `Board` (get/set),
 `Board::neighbors` (private, `Vec<Point>`, order unspecified; tests sort before comparing),
 `Board::group` (flood fill, check on push; panics for empty points; returns `Group = HashSet<Point>`).
 

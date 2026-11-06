@@ -1,4 +1,4 @@
-//! so far unused main
+//! The katrust application.
 fn main() {
     println!("Hello, world!");
 }

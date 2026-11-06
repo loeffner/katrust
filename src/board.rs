@@ -1,17 +1,17 @@
-//! Stones, Board and Board Coords
+//! The Go board: colors, points, and groups of connected stones.
 use std::collections::HashSet;
 
-/// The colour of a stone, or of the player who places it.
+/// The color of a stone, or of the player who places it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Stone {
-    /// Black player
+pub enum Color {
+    /// Black, who moves first.
     Black,
-    /// White player
+    /// White.
     White,
 }
 
-impl Stone {
-    /// Returns the other colour.
+impl Color {
+    /// Returns the other color.
     pub fn opponent(self) -> Self {
         match self {
             Self::Black => Self::White,
@@ -31,16 +31,16 @@ pub struct Point {
     pub y: u8,
 }
 
-/// A group of connected Stones of the same color
+/// A group of connected stones of the same color.
 pub type Group = HashSet<Point>;
 
 /// A square Go board: which stone, if any, is on each intersection.
 ///
-/// It only stores stones; it doesn't know the rules of Go.
+/// It only manages and reports on the board state; it doesn't enforce the rules of Go.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board {
     size: usize,
-    grid: Vec<Option<Stone>>,
+    grid: Vec<Option<Color>>,
 }
 
 impl Board {
@@ -69,7 +69,7 @@ impl Board {
     /// # Panics
     ///
     /// If `point` is not on the board.
-    pub fn get(&self, point: Point) -> Option<Stone> {
+    pub fn get(&self, point: Point) -> Option<Color> {
         let index = self.index(point);
         self.grid[index]
     }
@@ -81,7 +81,7 @@ impl Board {
     /// # Panics
     ///
     /// If `point` is not on the board.
-    pub fn set(&mut self, point: Point, stone: Option<Stone>) -> Option<Stone> {
+    pub fn set(&mut self, point: Point, stone: Option<Color>) -> Option<Color> {
         let index = self.index(point);
         std::mem::replace(&mut self.grid[index], stone)
     }
@@ -153,7 +153,7 @@ impl Board {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use Stone::*;
+    use Color::*;
 
     // Color tests
     #[test]
@@ -211,7 +211,7 @@ mod tests {
         // Getting an empty point returns None
         assert_eq!(board.get(point_a), None);
 
-        // Getting a set point, returns the Stone
+        // Getting a set point, returns the stone
         assert_eq!(board.set(point_a, Some(Black)), None);
         assert_eq!(board.get(point_a), Some(Black));
 
