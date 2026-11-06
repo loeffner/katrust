@@ -140,24 +140,35 @@ Architectural decisions made by the owner, with a one-line reason each. Keep thi
   toolkit's `Color` on import (`use … Color as UiColor`).
 - `Board` stores a flat grid `Vec<Option<Color>>` (one slot per intersection, indexed by `index`),
   not a list of stones: O(1) access, and two stones on one point can't happen.
+- Rules live in a `Game` that owns the `Board`; `Board` stays rule-free (state and queries only):
+  playing a move must know the rules, and ko needs history the board doesn't have.
 
 ## Next steps
 
 Puzzle milestone, board logic first (no UI, TDD). Done: `Color`, `Point`, `Board` (get/set),
 `Board::neighbors` (private, `Vec<Point>`, order unspecified; tests sort before comparing),
-`Board::group` (flood fill, check on push; panics for empty points; returns `Group = HashSet<Point>`).
+`Board::group` (one flood fill, check on push; panics for empty points; returns a snapshot
+`struct Group { stones, liberties, color }`, liberties as points so the UI can show them),
+`Game` (`src/game.rs`: owns the board and `to_move`; `play` rejects occupied points with
+`MoveError::Occupied` and leaves the game unchanged; off-board points panic).
 
-1. Liberties: `group()` returns a `struct Group` with the stones, the liberties and the colour,
-   from one flood fill (captures need all three). Liberties are points, not a count, so the UI can
-   show them to beginners (e.g. atari warnings).
-2. Playing a move: captures, illegal moves as `Result` with an error enum.
-3. Then SGF parsing and the solution tree. README once there's a product.
+1. Playing a move with `Game::play`, remaining steps:
+   1. Captures: remove neighbouring opponent groups without liberties. `Game` needs
+      `Board::neighbors` (private now): owner decides `pub` vs. `pub(crate)`. Return the captured
+      points from `play` (UI, ko)?
+   2. Suicide: own group without liberties after captures is illegal. Rule checks may become
+      helpers returning `Result<(), MoveError>`, chained with `?`.
+   3. Ko: `Game` keeps the previous position.
+2. Then SGF parsing and the solution tree. README once there's a product.
 
 Optional later: rewrite `neighbors` with `checked_sub`/`checked_add` + `flatten`/`filter`, or as an
-iterator once lifetimes come up (`TODO` in the code).
+iterator once lifetimes come up (`TODO` in the code). Test helpers (`pt(x, y)`, a board built from
+an ASCII diagram like the test comments) and table-driven neighbor tests: skipped for now.
 
 ## Open questions
 
 - GUI toolkit: the owner wants a comparison session first (candidates: iced, gtk4-rs/relm4 with
   libadwaita, egui). Present the trade-offs; don't pick one.
 - Crate layout (single crate vs. workspace with a UI-free core).
+- Board size validation: `Board::new` doesn't check the size yet. Owner leans towards a
+  `BoardSize` newtype (`TryFrom`, e.g. `2..=19`); reevaluate when sizes come from input (SGF `SZ`).

@@ -12,6 +12,7 @@ pub enum Color {
 
 impl Color {
     /// Returns the other color.
+    #[must_use]
     pub fn opponent(self) -> Self {
         match self {
             Self::Black => Self::White,

@@ -4,7 +4,7 @@
 /.pre-commit-config.yaml
 
 # Editors
-.vscode
+/.vscode
 
 # Added by cargo
 /target
