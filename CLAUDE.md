@@ -177,8 +177,6 @@ Refactors (owner's choice, not urgent):
 - `play` builds a new position instead of changing one (`fn play(&self, …) -> Result<Position,
   _>`, as katrain-rs does): unchanged-on-error comes for free, no undo, and it fits one position
   per tree node. Best done when `Game` becomes `Position`.
-- Comments: rewrite existing "what" comments as "why" comments (see Styleguide). `Game::play` is
-  done; check `board.rs` and the tests.
 
 Optional later: rewrite `neighbors` with `checked_sub`/`checked_add` + `flatten`/`filter`, or as an
 iterator once lifetimes come up (`TODO` in the code). Test helpers (`pt(x, y)`, a board built from

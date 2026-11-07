@@ -158,6 +158,7 @@ impl Board {
                         liberties.insert(neighbor);
                     }
                     Some(stone) if stone == color => {
+                        // `insert` returns false for stones already found: each is pushed once.
                         if stones.insert(neighbor) {
                             stack.push(neighbor);
                         }
@@ -239,23 +240,20 @@ mod tests {
         let point_a = Point { x: 2, y: 2 };
         let point_b = Point { x: 3, y: 3 };
 
-        // Getting an empty point returns None
+        // `set` returns what was on the point before.
         assert_eq!(board.get(point_a), None);
 
-        // Getting a set point, returns the stone
         assert_eq!(board.set(point_a, Some(Black)), None);
         assert_eq!(board.get(point_a), Some(Black));
 
-        // Setting a different point, does not change the other stones
+        // Each point is independent: setting point_b leaves point_a alone, and vice versa.
         assert_eq!(board.set(point_b, Some(Black)), None);
         assert_eq!(board.get(point_a), Some(Black));
         assert_eq!(board.get(point_b), Some(Black));
 
-        // Overwriting an already set point, changes the color
         assert_eq!(board.set(point_a, Some(White)), Some(Black));
         assert_eq!(board.get(point_a), Some(White));
 
-        // Clearing a stone works and leaves other stones untouched
         assert_eq!(board.set(point_a, None), Some(White));
         assert_eq!(board.get(point_a), None);
         assert_eq!(board.get(point_b), Some(Black));

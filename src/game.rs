@@ -96,6 +96,10 @@ impl Game {
 mod tests {
     use super::*;
 
+    // Board diagrams use the legend of the board tests, plus * = the move about to be played.
+    // Positions are set up with `board.set`, so the color to move is Black unless a test says
+    // otherwise.
+
     #[test]
     fn black_to_move_first() {
         let game = Game::new(2);
@@ -135,9 +139,8 @@ mod tests {
         assert_eq!(game.play(point), Ok(0));
         // White tries to play on a black stone.
         assert_eq!(game.play(point), Err(MoveError::Occupied));
-        // Point is still black.
+        // The game is unchanged.
         assert_eq!(game.board.get(point), Some(Color::Black));
-        // It's still White's turn.
         assert_eq!(game.to_move, Color::White);
     }
 
@@ -150,9 +153,8 @@ mod tests {
 
         // Black tries to play on its own stone.
         assert_eq!(game.play(point), Err(MoveError::Occupied));
-        // Point is still black.
+        // The game is unchanged.
         assert_eq!(game.board.get(point), Some(Color::Black));
-        // It's still Black's turn.
         assert_eq!(game.to_move, Color::Black);
     }
 
@@ -176,13 +178,9 @@ mod tests {
             game.board.set(point, Some(Color::Black));
         }
 
-        // Capture a point and check it returns the number of captured stones
         assert_eq!(game.play(capturing_point), Ok(1));
-
-        // Stone has been captured
         assert_eq!(game.board.get(point_to_capture), None);
-
-        // New stone has been placed
+        // The capturing stone isn't removed along with the captured one.
         assert_eq!(game.board.get(capturing_point), Some(Color::Black));
     }
 
@@ -211,14 +209,9 @@ mod tests {
             game.board.set(point, Some(Color::Black));
         }
 
-        // Capture a stone and check it returns the number of captured stones
         assert_eq!(game.play(capturing_point), Ok(2));
-
-        // Stones have been captured
         assert_eq!(game.board.get(points_to_capture[0]), None);
         assert_eq!(game.board.get(points_to_capture[1]), None);
-
-        // New stone has been placed
         assert_eq!(game.board.get(capturing_point), Some(Color::Black));
     }
 
@@ -366,8 +359,8 @@ mod tests {
         game.board.set(Point { x: 0, y: 1 }, Some(Color::White));
         game.board.set(Point { x: 1, y: 1 }, Some(Color::White));
 
-        // Whether the move itself is legal is the suicide rule's job (next step), so the result
-        // isn't checked here. Either way, Black's own stone must not be removed.
+        // The result (suicide) is covered by `play_rejects_suicide_group`. This guards against
+        // checking neighbors for liberties without filtering by color: (0, 0) would be removed.
         let _ = game.play(Point { x: 1, y: 0 });
         assert_eq!(game.board.get(point_b), Some(Color::Black));
     }
