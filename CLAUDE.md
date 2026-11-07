@@ -68,6 +68,8 @@ These rules come from the owner and apply to every session.
 - Use semantic versioning (during early development, no version numbers are required.)
 - Use linters, formatters before commiting.
 - Prefer test driven development.
+- Comments explain *why*, not *what* or *how*: the code already says what it does. Comment
+  non-obvious reasons, invariants and pitfalls; no step-by-step narration.
 
 ## Related projects (local)
 
@@ -142,6 +144,14 @@ Architectural decisions made by the owner, with a one-line reason each. Keep thi
   not a list of stones: O(1) access, and two stones on one point can't happen.
 - Rules live in a `Game` that owns the `Board`; `Board` stays rule-free (state and queries only):
   playing a move must know the rules, and ko needs history the board doesn't have.
+- Crate layout: the game core (board, rules, SGF) and the app become separate crates in a workspace
+  once the app starts; until then a single crate. The compiler then enforces a UI-free core. The
+  core never depends on UI code.
+- Visibility is decided per item: `pub` only if code outside the core crate (the future app) needs
+  it, otherwise `pub(crate)` or private. Until the app exists, only the entry points are `pub`
+  (`Game::new`, `Game::play`, and types in their signatures); the rest is promoted when the app
+  needs it. Making an item public later is non-breaking; the reverse isn't. Caveat: `pub(crate)`
+  items unused outside tests are dead code, so `clippy -D warnings` fails.
 
 ## Next steps
 
@@ -150,16 +160,24 @@ Puzzle milestone, board logic first (no UI, TDD). Done: `Color`, `Point`, `Board
 `Board::group` (one flood fill, check on push; panics for empty points; returns a snapshot
 `struct Group { stones, liberties, color }`, liberties as points so the UI can show them),
 `Game` (`src/game.rs`: owns the board and `to_move`; `play` rejects occupied points with
-`MoveError::Occupied` and leaves the game unchanged; off-board points panic).
+`MoveError::Occupied`, captures opponent groups without liberties and returns the number of
+captured stones, rejects suicide with `MoveError::Suicide`; the game is unchanged on errors;
+off-board points panic).
 
-1. Playing a move with `Game::play`, remaining steps:
-   1. Captures: remove neighbouring opponent groups without liberties. `Game` needs
-      `Board::neighbors` (private now): owner decides `pub` vs. `pub(crate)`. Return the captured
-      points from `play` (UI, ko)?
-   2. Suicide: own group without liberties after captures is illegal. Rule checks may become
-      helpers returning `Result<(), MoveError>`, chained with `?`.
-   3. Ko: `Game` keeps the previous position.
+1. Ko: `Game` keeps the previous position. `play` will need the captured *points* (not a count)
+   to detect a single-stone capture; katrain-rs matches "exactly one" with a slice pattern
+   (`if let [only] = captured[..]`).
 2. Then SGF parsing and the solution tree. README once there's a product.
+
+Refactors (owner's choice, not urgent):
+- `Board::group` → a `has_liberty(point) -> bool` (as in katrain-rs): the app doesn't need the
+  liberty points, the rules only need "any left?". (Counting liberties would be needed for atari
+  hints, if those ever come.)
+- `play` builds a new position instead of changing one (`fn play(&self, …) -> Result<Position,
+  _>`, as katrain-rs does): unchanged-on-error comes for free, no undo, and it fits one position
+  per tree node. Best done when `Game` becomes `Position`.
+- Comments: rewrite existing "what" comments as "why" comments (see Styleguide). `Game::play` is
+  done; check `board.rs` and the tests.
 
 Optional later: rewrite `neighbors` with `checked_sub`/`checked_add` + `flatten`/`filter`, or as an
 iterator once lifetimes come up (`TODO` in the code). Test helpers (`pt(x, y)`, a board built from
@@ -169,6 +187,5 @@ an ASCII diagram like the test comments) and table-driven neighbor tests: skippe
 
 - GUI toolkit: the owner wants a comparison session first (candidates: iced, gtk4-rs/relm4 with
   libadwaita, egui). Present the trade-offs; don't pick one.
-- Crate layout (single crate vs. workspace with a UI-free core).
 - Board size validation: `Board::new` doesn't check the size yet. Owner leans towards a
   `BoardSize` newtype (`TryFrom`, e.g. `2..=19`); reevaluate when sizes come from input (SGF `SZ`).

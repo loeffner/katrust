@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 /// The color of a stone, or of the player who places it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Color {
+pub(crate) enum Color {
     /// Black, who moves first.
     Black,
     /// White.
@@ -13,7 +13,7 @@ pub enum Color {
 impl Color {
     /// Returns the other color.
     #[must_use]
-    pub fn opponent(self) -> Self {
+    pub(crate) fn opponent(self) -> Self {
         match self {
             Self::Black => Self::White,
             Self::White => Self::Black,
@@ -23,7 +23,7 @@ impl Color {
 
 /// An intersection, counted from 0 at the top-left corner, as in SGF.
 ///
-/// A point is only a pair of coordinates: whether it lies on a board is up to [`Board::contains`].
+/// A point is only a pair of coordinates: whether it lies on a board is up to the board.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point {
     /// Column, from left to right.
@@ -36,20 +36,20 @@ pub struct Point {
 ///
 /// A snapshot from [`Board::group`]: it isn't updated when the board changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Group {
+pub(crate) struct Group {
     /// The points occupied by the group's stones.
-    pub stones: HashSet<Point>,
+    pub(crate) stones: HashSet<Point>,
     /// The empty points next to the group. With none left, the group is captured.
-    pub liberties: HashSet<Point>,
+    pub(crate) liberties: HashSet<Point>,
     /// The color of the group's stones.
-    pub color: Color,
+    pub(crate) color: Color,
 }
 
 /// A square Go board: which stone, if any, is on each intersection.
 ///
 /// It only manages and reports on the board state; it doesn't enforce the rules of Go.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Board {
+pub(crate) struct Board {
     size: usize,
     grid: Vec<Option<Color>>,
 }
@@ -58,7 +58,7 @@ impl Board {
     /// Creates an empty board with `size` × `size` intersections.
     ///
     /// The caller is responsible for choosing a size that makes sense.
-    pub fn new(size: usize) -> Self {
+    pub(crate) fn new(size: usize) -> Self {
         Self {
             size,
             grid: vec![None; size * size],
@@ -71,7 +71,7 @@ impl Board {
     }
 
     /// Returns whether `point` lies on this board.
-    pub fn contains(&self, point: Point) -> bool {
+    pub(crate) fn contains(&self, point: Point) -> bool {
         usize::from(point.x) < self.size && usize::from(point.y) < self.size
     }
 
@@ -80,7 +80,7 @@ impl Board {
     /// # Panics
     ///
     /// If `point` is not on the board.
-    pub fn get(&self, point: Point) -> Option<Color> {
+    pub(crate) fn get(&self, point: Point) -> Option<Color> {
         let index = self.index(point);
         self.grid[index]
     }
@@ -92,7 +92,7 @@ impl Board {
     /// # Panics
     ///
     /// If `point` is not on the board.
-    pub fn set(&mut self, point: Point, stone: Option<Color>) -> Option<Color> {
+    pub(crate) fn set(&mut self, point: Point, stone: Option<Color>) -> Option<Color> {
         let index = self.index(point);
         std::mem::replace(&mut self.grid[index], stone)
     }
@@ -105,7 +105,7 @@ impl Board {
     /// # Panics
     ///
     /// If `point` is not on the board.
-    fn neighbors(&self, point: Point) -> Vec<Point> {
+    pub(crate) fn neighbors(&self, point: Point) -> Vec<Point> {
         assert!(self.contains(point), "{point:?} is off the board");
 
         let mut neighbors = vec![];
@@ -142,7 +142,7 @@ impl Board {
     ///
     /// - If `point` is not on the board
     /// - If `point` is empty
-    pub fn group(&self, point: Point) -> Group {
+    pub(crate) fn group(&self, point: Point) -> Group {
         let Some(color) = self.get(point) else {
             panic!("{point:?} is empty");
         };
