@@ -8,14 +8,18 @@ pub enum MoveError {
     Occupied,
     /// The move would leave its own group without liberties and captures nothing.
     Suicide,
+    /// The move would immediately recreate the position before the opponent's last move.
+    Ko,
 }
 
-/// A game in progress: the board, and the color to move next.
+/// A game in progress: the board, the color to move next, and the board before the last move
+/// (for ko).
 ///
 /// Moves only go through [`Game::play`], which checks them against the rules.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Game {
     board: Board,
+    prev_board: Option<Board>,
     to_move: Color,
 }
 
@@ -24,6 +28,7 @@ impl Game {
     pub fn new(board_size: usize) -> Self {
         Self {
             board: Board::new(board_size),
+            prev_board: None,
             to_move: Color::Black,
         }
     }
@@ -40,6 +45,8 @@ impl Game {
     /// - [`MoveError::Occupied`] if `point` already has a stone.
     /// - [`MoveError::Suicide`] if the move captures nothing and leaves its own group without
     ///   liberties.
+    /// - [`MoveError::Ko`] if the move would recreate the position before the opponent's last
+    ///   move.
     ///
     /// # Panics
     ///
@@ -74,7 +81,12 @@ impl Game {
             return Err(MoveError::Suicide);
         }
 
-        self.board = new_board;
+        // Simple ko: the move would undo the opponent's last move.
+        if self.prev_board.as_ref() == Some(&new_board) {
+            return Err(MoveError::Ko);
+        }
+
+        self.prev_board = Some(std::mem::replace(&mut self.board, new_board));
         self.to_move = opponent;
         Ok(captured)
     }
@@ -442,5 +454,84 @@ mod tests {
 
         assert_eq!(game.play(point), Ok(0));
         assert_eq!(game.board.get(point), Some(Color::Black));
+    }
+
+    /// Sets up a ko, Black to move, * = Black's capture at (5, 4):
+    ///
+    /// ```text
+    /// Top-left (3, 3):
+    /// . X O .
+    /// X O * O
+    /// . X O .
+    /// ```
+    fn ko_game() -> Game {
+        let mut game = Game::new(9);
+        for (x, y) in [(4, 3), (3, 4), (4, 5)] {
+            game.board.set(Point { x, y }, Some(Color::Black));
+        }
+        for (x, y) in [(4, 4), (5, 3), (6, 4), (5, 5)] {
+            game.board.set(Point { x, y }, Some(Color::White));
+        }
+        game
+    }
+
+    #[test]
+    fn play_rejects_immediate_ko_retake() {
+        let mut game = ko_game();
+        let black_capture = Point { x: 5, y: 4 };
+        let white_retake = Point { x: 4, y: 4 };
+
+        assert_eq!(game.play(black_capture), Ok(1));
+        // Retaking would recreate the position before Black's capture.
+        assert_eq!(game.play(white_retake), Err(MoveError::Ko));
+
+        // The game is unchanged: no stone placed, Black's stone stays, still White's turn.
+        assert_eq!(game.board.get(white_retake), None);
+        assert_eq!(game.board.get(black_capture), Some(Color::Black));
+        assert_eq!(game.to_move, Color::White);
+    }
+
+    #[test]
+    fn play_allows_ko_retake_after_another_move() {
+        let mut game = ko_game();
+        let black_capture = Point { x: 5, y: 4 };
+        let white_retake = Point { x: 4, y: 4 };
+
+        assert_eq!(game.play(black_capture), Ok(1));
+        // Both players play elsewhere: the ban lasts only one move.
+        assert_eq!(game.play(Point { x: 0, y: 0 }), Ok(0));
+        assert_eq!(game.play(Point { x: 8, y: 8 }), Ok(0));
+
+        assert_eq!(game.play(white_retake), Ok(1));
+        assert_eq!(game.board.get(black_capture), None);
+        assert_eq!(game.board.get(white_retake), Some(Color::White));
+    }
+
+    #[test]
+    fn play_allows_retake_capturing_more_than_one_stone() {
+        // Top-left (3, 3); Black to move, * = Black's capture:
+        // . X O O .
+        // X O * X O
+        // . X O O .
+        // Black's capturing stone joins (6, 4), so White's retake captures two stones and doesn't
+        // recreate the earlier position: not a ko.
+        let mut game = Game::new(9);
+        let black_capture = Point { x: 5, y: 4 };
+        let black_joined = Point { x: 6, y: 4 };
+        let white_retake = Point { x: 4, y: 4 };
+
+        for (x, y) in [(4, 3), (3, 4), (4, 5), (6, 4)] {
+            game.board.set(Point { x, y }, Some(Color::Black));
+        }
+        for (x, y) in [(4, 4), (5, 3), (6, 3), (5, 5), (6, 5), (7, 4)] {
+            game.board.set(Point { x, y }, Some(Color::White));
+        }
+
+        assert_eq!(game.play(black_capture), Ok(1));
+        assert_eq!(game.play(white_retake), Ok(2));
+
+        assert_eq!(game.board.get(black_capture), None);
+        assert_eq!(game.board.get(black_joined), None);
+        assert_eq!(game.board.get(white_retake), Some(Color::White));
     }
 }

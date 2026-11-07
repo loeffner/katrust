@@ -161,13 +161,14 @@ Puzzle milestone, board logic first (no UI, TDD). Done: `Color`, `Point`, `Board
 `struct Group { stones, liberties, color }`, liberties as points so the UI can show them),
 `Game` (`src/game.rs`: owns the board and `to_move`; `play` rejects occupied points with
 `MoveError::Occupied`, captures opponent groups without liberties and returns the number of
-captured stones, rejects suicide with `MoveError::Suicide`; the game is unchanged on errors;
-off-board points panic).
+captured stones, rejects suicide with `MoveError::Suicide`, rejects simple ko with
+`MoveError::Ko` by comparing with `prev_board: Option<Board>`; `play` works on a clone and only
+keeps it if legal, so the game is unchanged on errors; off-board points panic). Move legality is
+complete for puzzles; pass, game end, scoring and superko come later.
 
-1. Ko: `Game` keeps the previous position. `play` will need the captured *points* (not a count)
-   to detect a single-stone capture; katrain-rs matches "exactly one" with a slice pattern
-   (`if let [only] = captured[..]`).
-2. Then SGF parsing and the solution tree. README once there's a product.
+1. SGF parsing and the solution tree, including setup positions (`AB`/`AW`/`AE`/`PL`; see Open
+   questions). Maybe first: the ASCII test helper (owner writes it; AI may generate positions).
+2. README once there's a product.
 
 Refactors (owner's choice, not urgent):
 - `Board::group` → a `has_liberty(point) -> bool` (as in katrain-rs): the app doesn't need the
@@ -184,6 +185,11 @@ iterator once lifetimes come up (`TODO` in the code). Test helpers (`pt(x, y)`, 
 an ASCII diagram like the test comments) and table-driven neighbor tests: skipped for now.
 
 ## Open questions
+
+- Setup (arbitrary position, player to move, maybe captures): through `Game` methods, later stored
+  as a setup node once a game tree exists? Decide with SGF parsing. A pass must also move the board
+  into `prev_board` (lifts the ko ban).
+- Scoring rules (area vs. territory): decides whether capture counts are needed.
 
 - GUI toolkit: the owner wants a comparison session first (candidates: iced, gtk4-rs/relm4 with
   libadwaita, egui). Present the trade-offs; don't pick one.
