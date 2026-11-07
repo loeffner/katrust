@@ -48,32 +48,33 @@ impl Game {
         if self.board.get(point).is_some() {
             return Err(MoveError::Occupied);
         }
+
+        let mut new_board = self.board.clone();
         let opponent = self.to_move.opponent();
         let mut captured = 0;
 
-        self.board.set(point, Some(self.to_move));
+        new_board.set(point, Some(self.to_move));
 
-        for neighbor in self.board.neighbors(point) {
-            // Checked on the current board: an earlier capture may have emptied this point.
-            if self.board.get(neighbor) != Some(opponent) {
+        for neighbor in new_board.neighbors(point) {
+            // Checked on new_board: an earlier capture may have emptied this point.
+            if new_board.get(neighbor) != Some(opponent) {
                 continue;
             }
-            let neighbor_group = self.board.group(neighbor);
+            let neighbor_group = new_board.group(neighbor);
             if !neighbor_group.liberties.is_empty() {
                 continue;
             }
             captured += neighbor_group.stones.len();
             for dead_point in neighbor_group.stones {
-                self.board.set(dead_point, None);
+                new_board.set(dead_point, None);
             }
         }
 
-        if self.board.group(point).liberties.is_empty() {
-            // Suicide captures nothing, so removing the stone restores the board.
-            self.board.set(point, None);
+        if new_board.group(point).liberties.is_empty() {
             return Err(MoveError::Suicide);
         }
 
+        self.board = new_board;
         self.to_move = opponent;
         Ok(captured)
     }
