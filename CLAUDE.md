@@ -44,7 +44,7 @@ These rules come from the owner and apply to every session.
 - **The repository is public.** Nothing committed may leak private information: no names, emails,
   hostnames, home paths, tokens, or details of the owner's machine or setup outside the repo
   (dotfiles, NixOS/Home Manager config, local directories). Check staged changes for this before
-  suggesting a commit.
+  suggesting a commit. Exception: the owner's name and email as crate `authors` in `Cargo.toml`.
 
 **Default: strict tutor mode.** The owner only learns by thinking and writing the code themselves.
 - **No code generation unless explicitly asked for.** By default explain, hint, point to docs, ask
@@ -144,14 +144,31 @@ Architectural decisions made by the owner, with a one-line reason each. Keep thi
   not a list of stones: O(1) access, and two stones on one point can't happen.
 - Rules live in a `Game` that owns the `Board`; `Board` stays rule-free (state and queries only):
   playing a move must know the rules, and ko needs history the board doesn't have.
-- Crate layout: the game core (board, rules, SGF) and the app become separate crates in a workspace
-  once the app starts; until then a single crate. The compiler then enforces a UI-free core. The
-  core never depends on UI code.
+- Crate layout: a virtual cargo workspace (root `Cargo.toml` has only `[workspace]`, so plain
+  `cargo test`/`clippy`/`fmt` cover every member, including the pre-commit hook). Crates live in
+  `crates/`: `katrust` (game core + thin binary) and `smartgame` (SGF). Shared metadata and lints
+  are inherited from `[workspace.package]`/`[workspace.lints]`. The game core and the app become
+  separate crates once the app starts; the compiler then enforces a UI-free core. The core never
+  depends on UI code.
 - Visibility is decided per item: `pub` only if code outside the core crate (the future app) needs
   it, otherwise `pub(crate)` or private. Until the app exists, only the entry points are `pub`
   (`Game::new`, `Game::play`, and types in their signatures); the rest is promoted when the app
   needs it. Making an item public later is non-breaking; the reverse isn't. Caveat: `pub(crate)`
   items unused outside tests are dead code, so `clippy -D warnings` fails.
+- SGF parser is hand-written (no crate), but as robust as a crate: learning is the point, and real
+  files are messy.
+- SGF syntax and meaning are separate layers: a Go-agnostic parser yields raw properties; a second
+  layer interprets them (points, moves, setup). Each is testable on its own.
+- SGF files will be read from and written to disk eventually (games get saved later). Parser and
+  writer share one data model (round trip `parse(write(t)) == t`); file I/O and decoding stay
+  outside the parser, which works on `&str`.
+- The SGF parser is standalone and reusable: no dependency on board/game/app code, and its API
+  takes and returns only general types (text, its own tree and error types). It is its own crate,
+  `smartgame` (SGF = Smart Game Format; free on crates.io, Go-neutral like the format), in a cargo
+  workspace, so the compiler enforces the independence.
+- Trees: the SGF layer is an owned recursive tree (`children: Vec<Node>`), natural for parsing and
+  writing. The game/puzzle layer starts the same way with a path cursor (`Vec<usize>`); it moves to
+  an arena (`NodeId` indices) once game review or KataGo needs storable node IDs.
 
 ## Next steps
 

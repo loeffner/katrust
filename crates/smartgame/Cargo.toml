@@ -1,0 +1,15 @@
+[package]
+name = "smartgame"
+version = "0.1.0"
+description = "Reads and writes SGF (Smart Game Format) files."
+keywords = ["sgf", "go", "baduk", "weiqi", "parser"]
+categories = ["parser-implementations"]
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

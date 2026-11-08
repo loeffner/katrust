@@ -1,0 +1,15 @@
+[package]
+name = "katrust"
+version = "0.1.0"
+description = "A Go/Weiqi/Baduk application for playing, analyzing and solving puzzles."
+keywords = ["go", "baduk", "weiqi", "katago"]
+categories = ["games"]
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

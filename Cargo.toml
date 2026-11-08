@@ -1,13 +1,15 @@
-[package]
-name = "katrust"
-version = "0.1.0"
+[workspace]
+members = ["crates/katrust", "crates/smartgame"]
+resolver = "3"
+
+[workspace.package]
 edition = "2024"
+authors = ["Andreas Lösel <andreas.loesel@outlook.com>"]
+repository = "https://github.com/loeffner/katrust"
+license = "AGPL-3.0-or-later"
 
-[dependencies]
-
-
-[lints.rust]
+[workspace.lints.rust]
 missing_docs = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
 missing_panics_doc = "warn"
